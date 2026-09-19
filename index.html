@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SURVEICRM - Dashboard Analitik & Kuesioner CRM</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js CDN for Analytics Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="css/style.css" />
+
+    <!-- Firebase v10 Compat CDN -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <!-- ExcelJS: untuk generate file .xlsx asli (bukan sekadar CSV) dengan format rapi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  </head>
+  <body class="bg-app-gradient min-h-screen text-slate-800 pb-20">
+    <!-- ================================================================= -->
+    <!-- TOP APP NAVIGATION                                                -->
+    <!-- ================================================================= -->
+    <header class="glass-nav sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+          <!-- Logo & Suite Badge -->
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/25"
+            >
+              S
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xl font-black tracking-tight text-slate-900">
+                  SURVEI<span class="text-indigo-600">CRM</span>
+                </span>
+                <span
+                  class="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md shadow-sm"
+                >
+                  Pro Suite
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-medium hidden sm:block">
+                Customer Relationship Management Analytics
+              </p>
+            </div>
+          </div>
+
+          <!-- Connection Status & Top Actions -->
+          <div class="flex items-center gap-2 sm:gap-3">
+            <div id="connection-status-badge">
+              <!-- Diisi JS: Status Firebase / Demo -->
+            </div>
+
+            <button
+              id="btn-open-config"
+              class="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200/80 rounded-xl transition shadow-sm"
+              title="Pengaturan Database Firebase"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                ></path>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                ></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Segmented Tab Navigation -->
+        <div
+          class="flex items-center gap-1.5 py-2.5 border-t border-slate-100 overflow-x-auto no-scrollbar"
+        >
+          <button
+            id="tab-btn-analytics"
+            onclick="switchTab('analytics')"
+            class="nav-tab-btn active px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              ></path>
+            </svg>
+            <span>Dashboard Analitik CRM</span>
+          </button>
+
+          <button
+            id="tab-btn-surveys"
+            onclick="switchTab('surveys')"
+            class="nav-tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+              ></path>
+            </svg>
+            <span>Kuesioner Saya</span>
+            <span
+              id="tab-badge-count"
+              class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 font-extrabold"
+              >0</span
+            >
+          </button>
+
+          <button
+            id="tab-btn-builder"
+            onclick="switchTab('builder')"
+            class="nav-tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition shrink-0"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              ></path>
+            </svg>
+            <span>Studio Pembuat Survei</span>
+            <span
+              class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 text-indigo-700 font-black"
+              >Live Preview</span
+            >
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================================================================= -->
+    <!-- MAIN CONTAINER                                                    -->
+    <!-- ================================================================= -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <!-- ================================================================= -->
+      <!-- VIEW 1: DASHBOARD ANALITIK CRM (EXECUTIVE ANALYTICS SUITE)        -->
+      <!-- ================================================================= -->
+      <div id="view-analytics" class="space-y-6">
+        <!-- Filter & Controls Toolbar -->
+        <div
+          class="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
+        >
+          <div>
+            <h2
+              class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2"
+            >
+              <span>Ringkasan Metrik & Analisis CRM</span>
+              <span
+                class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"
+                ></span>
+                Live Data
+              </span>
+            </h2>
+            <p class="text-xs text-slate-500">
+              Evaluasi persepsi loyalitas dan kepuasan pelanggan secara
+              kuantitatif.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- Dropdown Filter Survei -->
+            <select
+              id="analytics-survey-filter"
+              class="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus-glow"
+            >
+              <option value="all">Semua Survei (Agregat)</option>
+            </select>
+
+            <!-- Export CSV -->
+            <button
+              id="btn-export-analytics-csv"
+              class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition shadow-sm"
+            >
+              <svg
+                class="w-3.5 h-3.5 text-emerald-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                ></path>
+              </svg>
+              Ekspor ke Excel (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Top KPI Metric Cards -->
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
+        >
+          <!-- KPI 1: Total Responden -->
+          <div
+            class="glass-card rounded-3xl p-5 sm:p-6 shadow-sm hover-lift relative overflow-hidden"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <span
+                class="text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+                >Total Responden</span
+              >
+              <div
+                class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold"
+              >
+                👥
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <h3
+                id="kpi-total-respondents"
+                class="text-3xl sm:text-4xl font-black text-slate-900"
+              >
+                0
+              </h3>
+              <span
+                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"
+                >+100% aktif</span
+              >
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">
+              Partisipasi seluruh kuesioner
+            </p>
+          </div>
+
+          <!-- KPI 2: Skor Rata-Rata CSAT -->
+          <div
+            class="glass-card rounded-3xl p-5 sm:p-6 shadow-sm hover-lift relative overflow-hidden"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <span
+                class="text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+                >Skor CSAT (Kepuasan)</span
+              >
+              <div
+                class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold"
+              >
+                ⭐
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <h3
+                id="kpi-csat-score"
+                class="text-3xl sm:text-4xl font-black text-indigo-600"
+              >
+                0.0
+              </h3>
+              <span class="text-xs font-bold text-slate-400">/ 5.0</span>
+            </div>
+            <div class="mt-2">
+              <span
+                id="kpi-csat-badge"
+                class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200"
+              >
+                Menghitung...
+              </span>
+            </div>
+          </div>
+
+          <!-- KPI 3: Net Promoter Score (NPS) -->
+          <div
+            class="glass-card rounded-3xl p-5 sm:p-6 shadow-sm hover-lift relative overflow-hidden"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <span
+                class="text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+                >Net Promoter Score</span
+              >
+              <div
+                class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold"
+              >
+                🎯
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <h3
+                id="kpi-nps-score"
+                class="text-3xl sm:text-4xl font-black text-emerald-600"
+              >
+                +0
+              </h3>
+              <span class="text-xs font-bold text-slate-400">NPS</span>
+            </div>
+            <p id="kpi-nps-detail" class="text-[11px] text-slate-400 mt-2">
+              Loyalitas &amp; Rekomendasi
+            </p>
+          </div>
+
+          <!-- KPI 4: Completion Rate -->
+          <div
+            class="glass-card rounded-3xl p-5 sm:p-6 shadow-sm hover-lift relative overflow-hidden"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <span
+                class="text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+                >Completion Rate</span
+              >
+              <div
+                class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold"
+              >
+                ⚡
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <h3
+                id="kpi-completion-rate"
+                class="text-3xl sm:text-4xl font-black text-slate-900"
+              >
+                100%
+              </h3>
+              <span class="text-xs font-bold text-emerald-600"
+                >Sangat Baik</span
+              >
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">
+              Semua pertanyaan terjawab
+            </p>
+          </div>
+        </div>
+
+        <!-- Main Charts Row 1 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Chart 1: Tren Aktivitas Respon Masuk (Line / Area) -->
+          <div class="lg:col-span-2 glass-card rounded-3xl p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-black text-slate-900 tracking-tight">
+                  Tren Responden Masuk
+                </h3>
+                <p class="text-xs text-slate-400">
+                  Jumlah pengisian kuesioner berdasarkan waktu
+                </p>
+              </div>
+              <span
+                class="text-[11px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg"
+                >Aktivitas Real-Time</span
+              >
+            </div>
+            <div class="h-64 sm:h-72 w-full">
+              <canvas id="chart-timeline-responses"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Komposisi Kepuasan Pelanggan (Doughnut) -->
+          <div
+            class="glass-card rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-black text-slate-900 tracking-tight">
+                  Distribusi CSAT
+                </h3>
+                <span class="text-xs text-slate-400">Skala 1 - 5</span>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">
+                Proporsi tingkat kepuasan seluruh responden
+              </p>
+            </div>
+            <div class="h-56 relative flex items-center justify-center">
+              <canvas id="chart-csat-doughnut"></canvas>
+            </div>
+            <div
+              id="csat-doughnut-legend"
+              class="grid grid-cols-2 gap-2 text-xs pt-4 border-t border-slate-100"
+            >
+              <!-- Diisi JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Charts Row 2 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Chart 3: Skor Rata-rata per Aspek Kualitas Layanan (Bar Chart) -->
+          <div class="lg:col-span-2 glass-card rounded-3xl p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-black text-slate-900 tracking-tight">
+                  Evaluasi Dimensi Kualitas CRM
+                </h3>
+                <p class="text-xs text-slate-400">
+                  Skor rata-rata per butir pertanyaan skala penilaian
+                </p>
+              </div>
+            </div>
+            <div class="h-64 w-full">
+              <canvas id="chart-aspects-bar"></canvas>
+            </div>
+          </div>
+
+          <!-- NPS Gauge / Breakdown Widget -->
+          <div
+            class="glass-card rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <h3
+                class="text-base font-black text-slate-900 tracking-tight mb-1"
+              >
+                Kesehatan Loyalitas (NPS)
+              </h3>
+              <p class="text-xs text-slate-400 mb-4">
+                Klasifikasi advokasi merek oleh pelanggan
+              </p>
+            </div>
+
+            <div class="space-y-4 py-2">
+              <!-- Promoters -->
+              <div>
+                <div
+                  class="flex justify-between text-xs font-bold text-slate-700 mb-1"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <span
+                      class="w-2.5 h-2.5 rounded-full bg-emerald-500"
+                    ></span>
+                    Promoters (Nilai 5)
+                  </span>
+                  <span id="nps-pct-promoters" class="text-emerald-600"
+                    >0%</span
+                  >
+                </div>
+                <div
+                  class="w-full bg-slate-100 rounded-full h-3 overflow-hidden"
+                >
+                  <div
+                    id="nps-bar-promoters"
+                    class="bg-emerald-500 h-3 rounded-full progress-bar-fill"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Passives -->
+              <div>
+                <div
+                  class="flex justify-between text-xs font-bold text-slate-700 mb-1"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                    Passives (Nilai 4)
+                  </span>
+                  <span id="nps-pct-passives" class="text-amber-500">0%</span>
+                </div>
+                <div
+                  class="w-full bg-slate-100 rounded-full h-3 overflow-hidden"
+                >
+                  <div
+                    id="nps-bar-passives"
+                    class="bg-amber-400 h-3 rounded-full progress-bar-fill"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Detractors -->
+              <div>
+                <div
+                  class="flex justify-between text-xs font-bold text-slate-700 mb-1"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                    Detractors (Nilai 1 - 3)
+                  </span>
+                  <span id="nps-pct-detractors" class="text-rose-500">0%</span>
+                </div>
+                <div
+                  class="w-full bg-slate-100 rounded-full h-3 overflow-hidden"
+                >
+                  <div
+                    id="nps-bar-detractors"
+                    class="bg-rose-500 h-3 rounded-full progress-bar-fill"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="p-3 bg-slate-50 rounded-2xl text-[11px] text-slate-500 text-center font-medium border border-slate-100"
+            >
+              NPS tinggi menandakan pelanggan puas dan bersedia merekomendasikan
+              layanan.
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Responses Stream Feed -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 shadow-sm">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h3
+                class="text-base sm:text-lg font-black text-slate-900 tracking-tight"
+              >
+                Aktivitas Responden Terkini
+              </h3>
+              <p class="text-xs text-slate-400">
+                Daftar masukan dan skor yang baru saja dikirim responden
+              </p>
+            </div>
+            <button
+              onclick="loadAnalyticsData()"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                ></path>
+              </svg>
+              Refresh Feed
+            </button>
+          </div>
+
+          <div
+            id="analytics-recent-feed"
+            class="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-2 space-y-3"
+          >
+            <!-- Diisi JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 2: KUESIONER SAYA (SURVEYS LIST)                             -->
+      <!-- ================================================================= -->
+      <div id="view-surveys" class="hidden space-y-6">
+        <!-- Top Action Bar -->
+        <div
+          class="glass-card rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
+        >
+          <div>
+            <h2 class="text-lg font-black text-slate-900 tracking-tight">
+              Kuesioner Aktif Anda
+            </h2>
+            <p class="text-xs text-slate-500">
+              Pilih kuesioner untuk mencoba mengisi langsung atau menyalin
+              tautan publik.
+            </p>
+          </div>
+          <button
+            onclick="switchTab('builder')"
+            class="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M12 4v16m8-8H4"
+              ></path>
+            </svg>
+            Buat Survei Baru
+          </button>
+        </div>
+
+        <!-- Grid of Surveys Cards -->
+        <div
+          id="surveys-list-container"
+          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
+          <!-- Diisi JS -->
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 3: STUDIO PEMBUAT SURVEI DENGAN LIVE PHONE PREVIEW           -->
+      <!-- ================================================================= -->
+      <div id="view-builder" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <!-- Left: Builder Controls (Col 7) -->
+          <div class="lg:col-span-7 space-y-6">
+            <div
+              class="bg-white rounded-3xl border border-indigo-100 p-6 sm:p-8 shadow-xl relative overflow-hidden"
+            >
+              <div
+                class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+              ></div>
+
+              <div
+                class="flex items-center justify-between pb-5 mb-5 border-b border-slate-100"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg"
+                  >
+                    ✍️
+                  </div>
+                  <div>
+                    <h2
+                      class="text-lg font-black text-slate-900 tracking-tight"
+                    >
+                      Studio Pembuat Kuesioner
+                    </h2>
+                    <p class="text-xs text-slate-400">
+                      Lihat simulasi smartphone di sebelah kanan saat mengetik
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-reset-builder"
+                  class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-600 bg-slate-100 rounded-xl transition font-medium"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <!-- Survey Title & Desc -->
+              <div class="space-y-4 mb-6">
+                <div>
+                  <label
+                    class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5"
+                    >Judul Survei CRM *</label
+                  >
+                  <input
+                    type="text"
+                    id="dash-survey-title"
+                    class="w-full px-4 py-3 text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus-glow"
+                    placeholder="Contoh: Survei Evaluasi Kepuasan Pelanggan XYZ"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5"
+                    >Deskripsi / Petunjuk Pengisian</label
+                  >
+                  <textarea
+                    id="dash-survey-desc"
+                    rows="2"
+                    class="w-full px-4 py-2 text-xs sm:text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-2xl focus-glow resize-y"
+                    placeholder="Jelaskan tujuan kuesioner ini..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <!-- Questions List -->
+              <div class="space-y-4 mb-6">
+                <div
+                  class="flex items-center justify-between pb-2 border-b border-slate-100"
+                >
+                  <h3
+                    class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                  >
+                    Butir Pertanyaan
+                  </h3>
+                  <span class="text-[11px] text-slate-400"
+                    >Tersinkronisasi ke Layar HP</span
+                  >
+                </div>
+                <div id="dash-questions-container" class="space-y-4">
+                  <!-- Diisi JS -->
+                </div>
+              </div>
+
+              <!-- Add Question Toolbar -->
+              <div
+                class="p-5 bg-gradient-to-b from-slate-50 to-indigo-50/20 border-2 border-dashed border-slate-200 rounded-3xl text-center mb-6"
+              >
+                <p
+                  class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3"
+                >
+                  Tambah Jenis Pertanyaan:
+                </p>
+                <div class="flex flex-wrap justify-center gap-2.5">
+                  <button
+                    type="button"
+                    id="btn-dash-add-choice"
+                    class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition shadow-sm"
+                  >
+                    + Pilihan Ganda
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-dash-add-scale"
+                    class="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 transition shadow-sm"
+                  >
+                    + Skala Penilaian (1–5)
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-dash-add-text"
+                    class="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-xl border border-sky-200 transition shadow-sm"
+                  >
+                    + Teks Esai
+                  </button>
+                </div>
+              </div>
+
+              <!-- Publish Button -->
+              <div
+                class="pt-4 border-t border-slate-100 flex items-center justify-between"
+              >
+                <span class="text-xs text-slate-400"
+                  >Siap dipublikasikan ke cloud</span
+                >
+                <button
+                  type="button"
+                  id="btn-dash-publish"
+                  class="px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg shadow-indigo-500/25 transition transform active:scale-95"
+                >
+                  Simpan &amp; Publikasikan Survei
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Real-Time Mobile Phone Mockup (Col 5) -->
+          <div class="lg:col-span-5 sticky top-24">
+            <div class="text-center mb-3">
+              <span
+                class="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-full shadow-sm"
+              >
+                <span
+                  class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+                ></span>
+                Live Smartphone Simulator
+              </span>
+            </div>
+
+            <!-- Phone Device Container -->
+            <div class="smartphone-frame">
+              <div class="smartphone-notch"></div>
+
+              <div class="smartphone-screen" id="phone-preview-screen">
+                <!-- Live Preview Content rendered by JS -->
+                <div class="text-center py-8 text-slate-400 text-xs">
+                  Sedang menyinkronkan preview...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- MODAL: ISI SURVEI LANGSUNG (ADMIN QUICK-FILLER)                   -->
+    <!-- ================================================================= -->
+    <div
+      id="modal-fill-survey"
+      class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 overflow-y-auto max-h-[92vh]"
+      >
+        <div
+          class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg"
+            >
+              ✍️
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">
+                Isi Survei Langsung (Admin Mode)
+              </h3>
+              <p class="text-xs text-slate-500">
+                Uji coba kuesioner dan kirim respon simulasi langsung ke
+                database.
+              </p>
+            </div>
+          </div>
+          <button
+            id="btn-close-fill-modal"
+            class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="mb-5 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <h4
+            id="modal-fill-survey-title"
+            class="text-base font-bold text-slate-900 mb-1"
+          >
+            Judul Survei
+          </h4>
+          <p
+            id="modal-fill-survey-desc"
+            class="text-xs text-slate-500 leading-relaxed"
+          >
+            Deskripsi survei...
+          </p>
+        </div>
+
+        <form id="modal-fill-form" class="space-y-4">
+          <div id="modal-fill-questions-container" class="space-y-4">
+            <!-- Diisi JS -->
+          </div>
+
+          <div
+            class="pt-5 flex items-center justify-between border-t border-slate-100"
+          >
+            <button
+              type="button"
+              id="btn-cancel-fill"
+              class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="btn-submit-fill"
+              class="px-6 py-2.5 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition flex items-center gap-2"
+            >
+              <span>Kirim Jawaban Ini</span>
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                ></path>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- MODAL: SUKSES PUBLIKASI                                           -->
+    <!-- ================================================================= -->
+    <div
+      id="modal-publish-success"
+      class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 text-center"
+      >
+        <div
+          class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner"
+        >
+          <svg
+            class="w-8 h-8"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2.5"
+              d="M5 13l4 4L19 7"
+            ></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-black text-slate-900 mb-1">
+          Survei Berhasil Dipublikasikan!
+        </h3>
+        <p
+          id="published-survey-title"
+          class="text-xs font-semibold text-slate-600 mb-5"
+        >
+          Judul Survei
+        </p>
+
+        <div
+          class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-5 text-left"
+        >
+          <label
+            class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2"
+            >Tautan Responden</label
+          >
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="published-survey-url"
+              readonly
+              class="flex-1 px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-mono text-slate-700 select-all"
+            />
+            <button
+              id="btn-copy-published-url"
+              class="px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shrink-0 shadow-sm"
+            >
+              Salin
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <button
+            id="btn-whatsapp-published"
+            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition"
+          >
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <path
+                d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"
+              />
+            </svg>
+            Bagikan ke WhatsApp
+          </button>
+          <button
+            id="btn-close-publish-modal"
+            class="w-full px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-xl transition"
+          >
+            Tutup &amp; Lihat di Daftar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- MODAL: KONFIGURASI FIREBASE                                       -->
+    <!-- ================================================================= -->
+    <div
+      id="modal-firebase-config"
+      class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]"
+      >
+        <div
+          class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold"
+            >
+              🔥
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">
+                Pengaturan Firebase Firestore
+              </h3>
+              <p class="text-xs text-slate-500">
+                Hubungkan database Firebase cloud gratis untuk kuesioner Anda.
+              </p>
+            </div>
+          </div>
+          <button
+            id="btn-close-config-modal"
+            class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <div
+          class="mb-4 bg-indigo-50/80 border border-indigo-100 rounded-2xl p-4 text-xs text-indigo-900"
+        >
+          <p class="font-bold mb-1">💡 Panduan Kunci Firebase:</p>
+          <ol class="list-decimal ml-4 space-y-1 text-indigo-800">
+            <li>
+              Buka
+              <a
+                href="https://console.firebase.google.com"
+                target="_blank"
+                class="underline font-bold text-indigo-600"
+                >Firebase Console</a
+              >
+              &amp; buat project gratis.
+            </li>
+            <li>
+              Buat <b>Firestore Database</b> dengan mode Test (*rules: allow
+              read, write: if true*).
+            </li>
+            <li>Salin nilai `apiKey` dan `projectId` ke input di bawah ini.</li>
+          </ol>
+        </div>
+
+        <form id="form-firebase-config" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1"
+              >apiKey *</label
+            >
+            <input
+              type="text"
+              id="cfg-apiKey"
+              class="w-full px-3.5 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus-glow"
+              placeholder="AIzaSy..."
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1"
+              >projectId *</label
+            >
+            <input
+              type="text"
+              id="cfg-projectId"
+              class="w-full px-3.5 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus-glow"
+              placeholder="surveicrm-tugas"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1"
+              >authDomain</label
+            >
+            <input
+              type="text"
+              id="cfg-authDomain"
+              class="w-full px-3.5 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus-glow"
+              placeholder="surveicrm-tugas.firebaseapp.com"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1"
+                >storageBucket</label
+              >
+              <input
+                type="text"
+                id="cfg-storageBucket"
+                class="w-full px-3.5 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus-glow"
+                placeholder="project.appspot.com"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1"
+                >appId</label
+              >
+              <input
+                type="text"
+                id="cfg-appId"
+                class="w-full px-3.5 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus-glow"
+                placeholder="1:12345:web:abcdef"
+              />
+            </div>
+          </div>
+
+          <div
+            class="pt-4 flex items-center justify-between border-t border-slate-100"
+          >
+            <button
+              type="button"
+              id="btn-reset-demo"
+              class="text-xs text-rose-600 hover:text-rose-800 font-bold py-2 px-3 border border-rose-200 rounded-xl hover:bg-rose-50 transition"
+            >
+              Reset ke Mode Demo (Lokal)
+            </button>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                id="btn-cancel-config"
+                class="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                class="px-5 py-2 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/20 transition"
+              >
+                Simpan &amp; Hubungkan
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/app-dashboard.js"></script>
+  </body>
+</html>
