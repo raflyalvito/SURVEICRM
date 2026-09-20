@@ -113,6 +113,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentFillingSurvey = null;
   let currentFillingAnswers = {};
   let loadedForAdminUid = null;
+  // Jawaban di simulator hanya hidup di memori browser dan tidak pernah dikirim.
+  let previewAnswers = {};
+  let previewFeedback = "";
 
   // Chart instances
   let timelineChartInstance = null;
@@ -1339,6 +1342,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const desc =
       inputDashDesc.value.trim() ||
       "Deskripsi atau petunjuk pengisian kuesioner Anda...";
+    const answeredCount = builderQuestions.filter((q) => {
+      const answer = previewAnswers[q.id];
+      return answer !== undefined && String(answer).trim() !== "";
+    }).length;
+    const totalQuestions = builderQuestions.length;
+    const progress = totalQuestions
+      ? Math.round((answeredCount / totalQuestions) * 100)
+      : 0;
 
     let html = `
       <!-- Phone Header -->
@@ -1347,7 +1358,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="w-5 h-5 rounded-md bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center">S</div>
           <span class="font-black text-xs text-slate-900">SURVEI<span class="text-indigo-600">CRM</span></span>
         </div>
-        <span class="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full">Responden</span>
+        <button type="button" onclick="resetPhonePreview()" class="text-[9px] font-bold px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition">Reset uji coba</button>
       </div>
 
       <!-- Survey Card Preview -->
@@ -1357,8 +1368,18 @@ document.addEventListener("DOMContentLoaded", () => {
         <p class="text-[10px] text-slate-500 leading-relaxed">${escapeHtml(desc)}</p>
       </div>
 
+      <div class="mb-3 px-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[9px] font-bold text-slate-500">Progres pengisian</span>
+          <span id="preview-progress-label" class="text-[9px] font-black text-indigo-600">${answeredCount}/${totalQuestions} terjawab</span>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <div id="preview-progress-fill" class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style="width: ${progress}%"></div>
+        </div>
+      </div>
+
       <!-- Questions Preview -->
-      <div class="space-y-3">
+        <div class="space-y-3">
     `;
 
     builderQuestions.forEach((q, idx) => {
@@ -1378,11 +1399,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (q.type === "choice") {
         html += `<div class="space-y-1 pt-1">`;
         (q.options || []).forEach((opt) => {
+          const isSelected = previewAnswers[q.id] === opt;
           html += `
-            <div class="p-2 border border-slate-200 rounded-xl text-[10px] font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50/50">
-              <span class="w-2.5 h-2.5 rounded-full border border-slate-300"></span>
+            <button type="button" onclick="setPhonePreviewAnswer('${q.id}', '${escapeAttr(opt)}')" class="w-full p-2 border rounded-xl text-[10px] font-medium text-left flex items-center gap-1.5 transition ${isSelected ? "border-indigo-400 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-slate-50/50 text-slate-700 hover:border-indigo-200"}">
+              <span class="w-2.5 h-2.5 rounded-full border ${isSelected ? "border-indigo-600 bg-indigo-600 shadow-[inset_0_0_0_2px_white]" : "border-slate-300"}"></span>
               <span>${escapeHtml(opt)}</span>
-            </div>
+            </button>
           `;
         });
         html += `</div>`;
@@ -1393,9 +1415,9 @@ document.addEventListener("DOMContentLoaded", () => {
               ${[1, 2, 3, 4, 5]
                 .map(
                   (n) => `
-                <div class="py-1.5 text-center text-[10px] font-bold border border-slate-200 rounded-lg bg-white text-slate-700">
+                <button type="button" onclick="setPhonePreviewAnswer('${q.id}', '${n}')" class="py-1.5 text-center text-[10px] font-bold border rounded-lg transition ${String(previewAnswers[q.id]) === String(n) ? "border-purple-500 bg-purple-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-purple-300"}">
                   ${n}
-                </div>
+                </button>
               `,
                 )
                 .join("")}
@@ -1409,9 +1431,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (q.type === "text") {
         html += `
           <div class="pt-1">
-            <div class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-[9px] text-slate-400 italic">
-              Ketik jawaban responden...
-            </div>
+            <textarea data-preview-text="${q.id}" rows="2" oninput="updatePhonePreviewText('${q.id}', this.value)" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-[9px] text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" placeholder="Ketik jawaban responden...">${escapeHtml(previewAnswers[q.id] || "")}</textarea>
           </div>
         `;
       }
@@ -1422,16 +1442,63 @@ document.addEventListener("DOMContentLoaded", () => {
     html += `
       </div>
 
+      <div id="preview-feedback" class="${previewFeedback ? "" : "hidden"} mt-3 p-2.5 rounded-xl text-[9px] font-semibold ${previewFeedback.startsWith("✓") ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}">${escapeHtml(previewFeedback)}</div>
+
       <!-- Submit button preview -->
-      <div class="pt-4">
-        <div class="w-full py-2.5 bg-indigo-600 text-white font-bold text-[11px] rounded-xl text-center shadow-md">
-          Kirim Jawaban Survei
-        </div>
+      <div class="pt-3">
+        <button type="button" onclick="validatePhonePreview()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-xl text-center shadow-md transition">
+          Uji Kirim Jawaban
+        </button>
+        <p class="mt-1.5 text-center text-[8px] text-slate-400">Mode simulasi — jawaban tidak disimpan.</p>
       </div>
     `;
 
     phonePreviewScreen.innerHTML = html;
   }
+
+  function updatePreviewProgressOnly() {
+    const answeredCount = builderQuestions.filter((q) => {
+      const answer = previewAnswers[q.id];
+      return answer !== undefined && String(answer).trim() !== "";
+    }).length;
+    const totalQuestions = builderQuestions.length;
+    const progress = totalQuestions
+      ? Math.round((answeredCount / totalQuestions) * 100)
+      : 0;
+    const label = document.getElementById("preview-progress-label");
+    const fill = document.getElementById("preview-progress-fill");
+    if (label) label.textContent = `${answeredCount}/${totalQuestions} terjawab`;
+    if (fill) fill.style.width = `${progress}%`;
+  }
+
+  window.setPhonePreviewAnswer = function (questionId, answer) {
+    previewAnswers[questionId] = answer;
+    previewFeedback = "";
+    updatePhonePreview();
+  };
+
+  window.updatePhonePreviewText = function (questionId, answer) {
+    previewAnswers[questionId] = answer;
+    previewFeedback = "";
+    updatePreviewProgressOnly();
+  };
+
+  window.resetPhonePreview = function () {
+    previewAnswers = {};
+    previewFeedback = "";
+    updatePhonePreview();
+  };
+
+  window.validatePhonePreview = function () {
+    const firstMissing = builderQuestions.find((q) => {
+      const answer = previewAnswers[q.id];
+      return q.required && (answer === undefined || String(answer).trim() === "");
+    });
+    previewFeedback = firstMissing
+      ? `Lengkapi pertanyaan wajib: ${firstMissing.title || "Pertanyaan tanpa judul"}.`
+      : "✓ Simulasi berhasil. Tidak ada jawaban yang disimpan.";
+    updatePhonePreview();
+  };
 
   // Builder Mutations
   inputDashTitle.addEventListener("input", updatePhonePreview);
@@ -1587,6 +1654,8 @@ document.addEventListener("DOMContentLoaded", () => {
       inputDashTitle.value = "";
       inputDashDesc.value = "";
       builderQuestions = [];
+      previewAnswers = {};
+      previewFeedback = "";
       renderBuilderQuestions();
       updatePhonePreview();
     }
