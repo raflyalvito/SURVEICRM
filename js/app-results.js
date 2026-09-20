@@ -34,6 +34,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   let survey = null;
   let currentResponses = [];
 
+  // Halaman hasil hanya boleh dibuka dari sesi admin yang terdaftar.
+  // Sesi Firebase akan tetap tersedia saat berpindah halaman dari dashboard.
+  const auth =
+    typeof firebase !== "undefined" && typeof firebase.auth === "function"
+      ? firebase.auth()
+      : null;
+  if (!auth) {
+    window.location.replace("index.html");
+    return;
+  }
+
+  const currentUser = await new Promise((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+  const adminProfile = currentUser
+    ? await window.SurveyDB.getAdminProfile(currentUser.uid).catch(() => null)
+    : null;
+  if (!adminProfile || adminProfile.active !== true) {
+    window.location.replace("index.html");
+    return;
+  }
+
   try {
     // Jika dibuka langsung tanpa ?id=..., otomatis ambil survei aktif pertama
     if (!surveyId) {

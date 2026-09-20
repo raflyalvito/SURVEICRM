@@ -16,6 +16,7 @@
     <!-- Firebase v10 Compat CDN -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
     <!-- ExcelJS: untuk generate file .xlsx asli (bukan sekadar CSV) dengan format rapi -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -24,7 +25,7 @@
     <!-- ================================================================= -->
     <!-- TOP APP NAVIGATION                                                -->
     <!-- ================================================================= -->
-    <header class="glass-nav sticky top-0 z-40">
+    <header data-admin-content class="hidden glass-nav sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16 items-center">
           <!-- Logo & Suite Badge -->
@@ -48,6 +49,10 @@
 
           <!-- Top Actions -->
           <div class="flex items-center gap-2 sm:gap-3">
+            <span id="admin-email" class="hidden sm:inline text-xs font-semibold text-slate-500"></span>
+            <button id="btn-admin-logout" type="button" class="px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition">
+              Keluar
+            </button>
             <button id="btn-open-config"></button>
           </div>
         </div>
@@ -134,7 +139,7 @@
     <!-- ================================================================= -->
     <!-- MAIN CONTAINER                                                    -->
     <!-- ================================================================= -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+    <main data-admin-content class="hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
       <!-- ================================================================= -->
       <!-- VIEW 1: DASHBOARD ANALITIK CRM (EXECUTIVE ANALYTICS SUITE)        -->
       <!-- ================================================================= -->
@@ -1096,6 +1101,27 @@
               </button>
             </div>
           </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: LOGIN ADMIN -->
+    <div id="modal-admin-login" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+      <div class="w-full max-w-md rounded-3xl bg-white p-7 sm:p-8 shadow-2xl">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 text-white font-black text-xl flex items-center justify-center mb-5">S</div>
+        <h1 class="text-2xl font-black text-slate-900">Masuk Admin</h1>
+        <p class="mt-2 text-sm leading-relaxed text-slate-500">Gunakan akun admin SURVEICRM untuk membuka dashboard dan mengelola survei.</p>
+        <form id="form-admin-login" class="mt-6 space-y-4">
+          <div>
+            <label for="admin-login-email" class="block mb-1.5 text-xs font-bold text-slate-600">Email</label>
+            <input id="admin-login-email" type="email" autocomplete="email" required class="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="admin@email.com" />
+          </div>
+          <div>
+            <label for="admin-login-password" class="block mb-1.5 text-xs font-bold text-slate-600">Kata sandi</label>
+            <input id="admin-login-password" type="password" autocomplete="current-password" required class="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="••••••••" />
+          </div>
+          <p id="admin-login-error" class="hidden text-xs font-semibold text-rose-600"></p>
+          <button id="btn-admin-login" type="submit" class="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700">Masuk ke Dashboard</button>
         </form>
       </div>
     </div>

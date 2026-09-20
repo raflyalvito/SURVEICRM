@@ -9,6 +9,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const loadingEl = document.getElementById("survey-loading");
   const errorEl = document.getElementById("survey-error");
+  const errorTitleEl = document.getElementById("error-title");
   const errorMsgEl = document.getElementById("error-message");
   const formEl = document.getElementById("survey-form");
   const successEl = document.getElementById("survey-success");
@@ -37,27 +38,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     if (!surveyId) {
       const allSurveys = await window.SurveyDB.getSurveys();
-      if (allSurveys && allSurveys.length > 0) {
-        surveyId = allSurveys[0].id;
+      const activeSurvey = allSurveys && allSurveys.find((survey) => survey.isActive !== false);
+      if (activeSurvey) {
+        surveyId = activeSurvey.id;
       } else {
-        surveyId = "srv_contoh_crm";
+        loadingEl.classList.add("hidden");
+        errorTitleEl.textContent = "Tidak Ada Survei Aktif";
+        errorMsgEl.textContent =
+          "Belum ada survei yang dapat diisi saat ini. Silakan coba lagi nanti.";
+        errorEl.classList.remove("hidden");
+        return;
       }
     }
 
     surveyData = await window.SurveyDB.getSurveyById(surveyId);
 
     if (!surveyData) {
-      const fallbackList = await window.SurveyDB.getSurveys();
-      if (fallbackList && fallbackList.length > 0) {
-        surveyData = fallbackList[0];
-        surveyId = surveyData.id;
-      }
-    }
-
-    if (!surveyData) {
       loadingEl.classList.add("hidden");
       errorMsgEl.textContent =
         "Belum ada survei yang aktif. Silakan buat survei terlebih dahulu di Dashboard Admin.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    if (surveyData.isActive === false) {
+      loadingEl.classList.add("hidden");
+      errorTitleEl.textContent = "Survei Sedang Dinonaktifkan";
+      errorMsgEl.textContent =
+        "Survei ini sedang tidak menerima jawaban. Silakan hubungi penyelenggara survei untuk informasi lebih lanjut.";
       errorEl.classList.remove("hidden");
       return;
     }

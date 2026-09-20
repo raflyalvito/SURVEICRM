@@ -94,6 +94,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputStorageBucket = document.getElementById("cfg-storageBucket");
   const inputAppId = document.getElementById("cfg-appId");
 
+  // Elements Login & Akses Admin
+  const adminContentElements = document.querySelectorAll("[data-admin-content]");
+  const loginModal = document.getElementById("modal-admin-login");
+  const loginForm = document.getElementById("form-admin-login");
+  const loginEmailInput = document.getElementById("admin-login-email");
+  const loginPasswordInput = document.getElementById("admin-login-password");
+  const loginError = document.getElementById("admin-login-error");
+  const btnLogin = document.getElementById("btn-admin-login");
+  const btnLogout = document.getElementById("btn-admin-logout");
+  const adminEmail = document.getElementById("admin-email");
+
   // =========================================================================
   // STATE MANAGEMENT
   // =========================================================================
@@ -101,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let allResponsesMap = {}; // { [surveyId]: responseArray }
   let currentFillingSurvey = null;
   let currentFillingAnswers = {};
+  let loadedForAdminUid = null;
 
   // Chart instances
   let timelineChartInstance = null;
@@ -189,6 +201,120 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("Error load initial data:", err);
     }
+  }
+
+  // =========================================================================
+  // OTENTIKASI & OTORISASI ADMIN
+  // =========================================================================
+  function setLoginError(message = "") {
+    loginError.textContent = message;
+    loginError.classList.toggle("hidden", !message);
+  }
+
+  function showLogin(message = "") {
+    adminContentElements.forEach((element) => element.classList.add("hidden"));
+    loginModal.classList.remove("hidden");
+    setLoginError(message);
+  }
+
+  function showDashboard(user) {
+    adminEmail.textContent = user.email || "Admin";
+    adminContentElements.forEach((element) => element.classList.remove("hidden"));
+    loginModal.classList.add("hidden");
+    setLoginError();
+  }
+
+  async function handleAdminSession(user) {
+    if (!user) {
+      loadedForAdminUid = null;
+      showLogin();
+      return;
+    }
+
+    try {
+      const profile = await window.SurveyDB.getAdminProfile(user.uid);
+      if (!profile) {
+        loadedForAdminUid = null;
+        showLogin(
+          "UID akun ini belum ada di koleksi admins. Pastikan Document ID sama dengan UID di Firebase Authentication.",
+        );
+        return;
+      }
+      if (profile.active !== true) {
+        loadedForAdminUid = null;
+        showLogin(
+          "Akun admin belum aktif. Field active harus bertipe Boolean dan bernilai true.",
+        );
+        return;
+      }
+
+      showDashboard(user);
+      if (loadedForAdminUid !== user.uid) {
+        loadedForAdminUid = user.uid;
+        await loadAllInitialData();
+      }
+    } catch (err) {
+      console.error("Gagal memverifikasi akun admin:", err);
+      showLogin(
+        err.code === "permission-denied"
+          ? "Akses Firestore ditolak. Publikasikan Rules pada file FIRESTORE_RULES.md."
+          : "Akses admin tidak dapat diverifikasi: " + err.message,
+      );
+    }
+  }
+
+  function getAuth() {
+    return typeof firebase !== "undefined" && typeof firebase.auth === "function"
+      ? firebase.auth()
+      : null;
+  }
+
+  async function initializeAdminAuthentication() {
+    const auth = getAuth();
+    if (!auth || !window.SurveyDB.isFirebaseActive) {
+      showLogin("Firebase belum terhubung. Hubungkan Firebase sebelum login admin.");
+      return;
+    }
+
+    auth.onAuthStateChanged(handleAdminSession);
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setLoginError();
+      btnLogin.disabled = true;
+      btnLogin.textContent = "Memproses...";
+
+      try {
+        await auth.signInWithEmailAndPassword(
+          loginEmailInput.value.trim(),
+          loginPasswordInput.value,
+        );
+        loginPasswordInput.value = "";
+      } catch (err) {
+        console.error("Login admin gagal:", err);
+        const message =
+          err.code === "auth/invalid-credential" ||
+          err.code === "auth/user-not-found" ||
+          err.code === "auth/wrong-password"
+            ? "Email atau kata sandi salah."
+            : err.code === "auth/too-many-requests"
+              ? "Terlalu banyak percobaan. Coba lagi beberapa saat lagi."
+              : "Login gagal: " + err.message;
+        setLoginError(message);
+      } finally {
+        btnLogin.disabled = false;
+        btnLogin.textContent = "Masuk ke Dashboard";
+      }
+    });
+
+    btnLogout.addEventListener("click", async () => {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.error("Logout admin gagal:", err);
+        window.UI.showToast("Gagal keluar dari akun: " + err.message, "error");
+      }
+    });
   }
 
   function updateSurveyFilterOptions() {
@@ -942,6 +1068,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const qCount = survey.questions ? survey.questions.length : 0;
         const rCount = (allResponsesMap[survey.id] || []).length;
         const dateStr = window.UI.formatDate(survey.createdAt);
+        const isActive = survey.isActive !== false;
 
         return `
         <div class="glass-card rounded-3xl p-6 shadow-sm hover-lift flex flex-col justify-between relative overflow-hidden group">
@@ -970,6 +1097,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 ${qCount} Pertanyaan
               </span>
+              <button
+                type="button"
+                onclick="toggleSurveyStatus('${survey.id}')"
+                role="switch"
+                aria-checked="${isActive}"
+                class="inline-flex items-center gap-2 font-bold px-2 py-1.5 rounded-lg border transition ${isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"}"
+                title="${isActive ? "Klik untuk menonaktifkan survei" : "Klik untuk mengaktifkan survei"}"
+              >
+                <span class="relative inline-flex h-5 w-9 items-center rounded-full transition ${isActive ? "bg-emerald-500" : "bg-slate-300"}">
+                  <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition ${isActive ? "translate-x-4" : "translate-x-1"}"></span>
+                </span>
+                ${isActive ? "Aktif" : "Nonaktif"}
+              </button>
             </div>
           </div>
 
@@ -1546,6 +1686,13 @@ document.addEventListener("DOMContentLoaded", () => {
       window.UI.showToast("Survei tidak ditemukan.", "error");
       return;
     }
+    if (survey.isActive === false) {
+      window.UI.showToast(
+        "Aktifkan survei terlebih dahulu untuk mulai menerima jawaban.",
+        "warning",
+      );
+      return;
+    }
 
     currentFillingSurvey = survey;
     currentFillingAnswers = {};
@@ -1691,15 +1838,48 @@ document.addEventListener("DOMContentLoaded", () => {
     window.UI.shareWhatsApp(title, url);
   };
 
+  window.toggleSurveyStatus = async function (surveyId) {
+    const survey = loadedSurveys.find((item) => item.id === surveyId);
+    if (!survey) {
+      window.UI.showToast("Survei tidak ditemukan.", "error");
+      return;
+    }
+
+    const nextStatus = survey.isActive === false;
+    const action = nextStatus ? "mengaktifkan" : "menonaktifkan";
+    if (!confirm(`Yakin ingin ${action} survei "${survey.title}"?`)) return;
+
+    try {
+      await window.SurveyDB.setSurveyActive(surveyId, nextStatus);
+      survey.isActive = nextStatus;
+      renderSurveysList();
+      window.UI.showToast(
+        `Survei berhasil ${nextStatus ? "diaktifkan" : "dinonaktifkan"}.`,
+        "success",
+      );
+    } catch (err) {
+      console.error(err);
+      window.UI.showToast("Gagal mengubah status survei: " + err.message, "error");
+    }
+  };
+
   window.deleteSurveyConfirm = async function (surveyId, title) {
     if (
       confirm(
         `Hapus kuesioner "${title}" beserta seluruh respons yang tersimpan?`,
       )
     ) {
-      await window.SurveyDB.deleteSurvey(surveyId);
-      window.UI.showToast("Survei berhasil dihapus.", "success");
-      loadAllInitialData();
+      try {
+        await window.SurveyDB.deleteSurvey(surveyId);
+        window.UI.showToast("Survei dan seluruh respons berhasil dihapus.", "success");
+        await loadAllInitialData();
+      } catch (err) {
+        console.error(err);
+        window.UI.showToast(
+          "Gagal menghapus survei dari Firebase: " + err.message,
+          "error",
+        );
+      }
     }
   };
 
@@ -1769,6 +1949,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return str.replace(/'/g, "\\'").replace(/"/g, "&quot;");
   }
 
-  // Initial Boot
-  loadAllInitialData();
+  // Initial Boot — dashboard baru memuat data setelah login admin lolos verifikasi.
+  initializeAdminAuthentication();
 });

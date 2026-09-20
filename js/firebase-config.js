@@ -124,6 +124,9 @@ class SurveyDBLayer {
       title: surveyData.title || "Survei Tanpa Judul",
       description: surveyData.description || "",
       questions: surveyData.questions || [],
+      // Survei baru langsung dapat diisi. Survei lama tanpa field ini juga
+      // diperlakukan aktif agar kompatibel dengan data yang sudah ada.
+      isActive: surveyData.isActive !== false,
       createdAt: nowIso,
       updatedAt: nowIso,
       responseCount: 0,
@@ -215,24 +218,65 @@ class SurveyDBLayer {
     return surveys.find((s) => s.id === surveyId) || null;
   }
 
+  // Dokumen admin dibuat dari Firebase Console agar pengguna tidak dapat
+  // meningkatkan aksesnya sendiri dari aplikasi.
+  async getAdminProfile(uid) {
+    if (!uid || !this.isFirebaseActive || !this.db) return null;
+
+    const adminDoc = await this.db.collection("admins").doc(uid).get();
+    return adminDoc.exists ? adminDoc.data() : null;
+  }
+
+  // Ubah ketersediaan survei untuk responden.
+  async setSurveyActive(surveyId, isActive) {
+    const nowIso = new Date().toISOString();
+
+    if (this.isFirebaseActive && this.db) {
+      try {
+        await this.db.collection("surveys").doc(surveyId).update({
+          isActive: Boolean(isActive),
+          updatedAt: nowIso,
+        });
+        return { id: surveyId, isActive: Boolean(isActive), updatedAt: nowIso };
+      } catch (err) {
+        console.error("Error mengubah status survei di Firestore:", err);
+        throw err;
+      }
+    }
+
+    const surveys = this._getLocalSurveys();
+    const survey = surveys.find((s) => s.id === surveyId);
+    if (!survey) throw new Error("Survei tidak ditemukan.");
+
+    survey.isActive = Boolean(isActive);
+    survey.updatedAt = nowIso;
+    this._saveLocalSurveys(surveys);
+    return survey;
+  }
+
   // Hapus Survei
   async deleteSurvey(surveyId) {
     if (this.isFirebaseActive && this.db) {
-      try {
-        // Hapus respon dalam subcollection
-        const respSnap = await this.db
-          .collection("surveys")
-          .doc(surveyId)
-          .collection("responses")
-          .get();
-        const batch = this.db.batch();
-        respSnap.forEach((doc) => batch.delete(doc.ref));
-        await batch.commit();
+      const surveyRef = this.db.collection("surveys").doc(surveyId);
 
-        // Hapus survei utama
-        await this.db.collection("surveys").doc(surveyId).delete();
+      try {
+        // Firestore tidak menghapus subcollection secara otomatis. Hapus
+        // respons terlebih dahulu dalam batch maksimal 500 operasi.
+        const respSnap = await surveyRef.collection("responses").get();
+        for (let index = 0; index < respSnap.docs.length; index += 500) {
+          const batch = this.db.batch();
+          respSnap.docs
+            .slice(index, index + 500)
+            .forEach((responseDoc) => batch.delete(responseDoc.ref));
+          await batch.commit();
+        }
+
+        await surveyRef.delete();
       } catch (err) {
         console.error("Error menghapus survei dari Firestore:", err);
+        // Jangan menghapus cache lokal atau memberi pesan sukses bila data
+        // cloud belum benar-benar terhapus.
+        throw err;
       }
     }
 
@@ -278,6 +322,14 @@ class SurveyDBLayer {
 
   // Kirim Respon Survei
   async submitResponse(surveyId, answersData, nim) {
+    // Periksa ulang status sebelum menyimpan, agar survei yang baru saja
+    // dinonaktifkan tidak menerima respons dari halaman yang masih terbuka.
+    const survey = await this.getSurveyById(surveyId);
+    if (!survey) throw new Error("Survei tidak ditemukan.");
+    if (survey.isActive === false) {
+      throw new Error("Survei ini sedang tidak aktif dan tidak menerima jawaban.");
+    }
+
     const responseId =
       "resp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
     const nowIso = new Date().toISOString();
@@ -424,6 +476,7 @@ class SurveyDBLayer {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             responseCount: 3,
+            isActive: true,
             questions: [
               {
                 id: "q_1",
