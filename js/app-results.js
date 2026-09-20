@@ -209,6 +209,52 @@ document.addEventListener("DOMContentLoaded", async () => {
               .join("")}
           </div>
         `;
+
+        // Tampilkan jawaban pertanyaan lanjutan (follow-up) yang menempel ke tiap opsi
+        if (q.followUps) {
+          Object.keys(q.followUps).forEach((optIdxKey) => {
+            const fu = q.followUps[optIdxKey];
+            if (!fu || !fu.title) return;
+            const optionText = options[optIdxKey];
+
+            const fuAnswers = responses
+              .filter(
+                (r) =>
+                  r.answers &&
+                  r.answers[q.id] === optionText &&
+                  r.answers[fu.id],
+              )
+              .map((r) => ({ text: r.answers[fu.id], time: r.submittedAt }));
+
+            cardHtml += `
+              <div class="mt-4 pl-4 border-l-2 border-indigo-200 space-y-2.5">
+                <p class="text-xs font-bold text-indigo-600">
+                  Pertanyaan lanjutan (muncul jika pilih "${escapeHtml(optionText)}"): ${escapeHtml(fu.title)}
+                </p>
+                ${
+                  fuAnswers.length === 0
+                    ? `
+                  <div class="text-xs text-slate-400 py-1">Belum ada jawaban untuk pertanyaan lanjutan ini.</div>
+                `
+                    : `
+                  <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    ${fuAnswers
+                      .map(
+                        (ans) => `
+                      <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs">
+                        <p class="text-slate-800 leading-relaxed">${escapeHtml(ans.text)}</p>
+                        <span class="text-[10px] text-slate-400 block mt-1">${window.UI.formatDate(ans.time)}</span>
+                      </div>
+                    `,
+                      )
+                      .join("")}
+                  </div>
+                `
+                }
+              </div>
+            `;
+          });
+        }
       }
       // 2. Tipe SKALA PENILAIAN (1 - 5)
       else if (q.type === "scale") {
@@ -367,6 +413,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (val) {
           summaryParts.push(`<b>Q${qIdx + 1}:</b> ${escapeHtml(val)}`);
         }
+        // Sertakan jawaban pertanyaan lanjutan (follow-up) kalau ada & relevan
+        if (q.type === "choice" && q.followUps && val) {
+          const selectedIdx = (q.options || []).indexOf(val);
+          const fu = q.followUps[selectedIdx];
+          if (fu && r.answers && r.answers[fu.id]) {
+            summaryParts.push(
+              `<b>↳ ${escapeHtml(fu.title)}:</b> ${escapeHtml(r.answers[fu.id])}`,
+            );
+          }
+        }
       });
 
       row.innerHTML = `
@@ -411,17 +467,43 @@ document.addEventListener("DOMContentLoaded", async () => {
       const questions = survey.questions || [];
 
       // Susunan kolom: No, ID Responden, Waktu Pengisian, lalu satu kolom per pertanyaan
+      // (plus kolom tambahan untuk tiap pertanyaan lanjutan/follow-up, ditaruh tepat setelah induknya)
       const columns = [
-        { header: "No", key: "no", width: 6 },
-        { header: "ID Responden", key: "respId", width: 22 },
-        { header: "Waktu Pengisian", key: "time", width: 20 },
+        {
+          header: "No",
+          width: 6,
+          isNumber: true,
+          getValue: (r, idx) => idx + 1,
+        },
+        { header: "ID Responden", width: 22, getValue: (r) => r.id || "-" },
+        {
+          header: "Waktu Pengisian",
+          width: 20,
+          getValue: (r) => window.UI.formatDate(r.submittedAt),
+        },
       ];
+
       questions.forEach((q, i) => {
         columns.push({
           header: `Q${i + 1}: ${q.title}`,
-          key: `q_${q.id}`,
           width: 32,
+          isScaleNumber: q.type === "scale",
+          getValue: (r) => (r.answers ? r.answers[q.id] : null),
         });
+
+        // Kolom tambahan untuk tiap pertanyaan lanjutan yang menempel di opsi pertanyaan ini
+        if (q.type === "choice" && q.followUps) {
+          Object.keys(q.followUps).forEach((optIdxKey) => {
+            const fu = q.followUps[optIdxKey];
+            if (!fu || !fu.title) return;
+            const optionText = (q.options || [])[optIdxKey] || "";
+            columns.push({
+              header: `Q${i + 1} - Lanjutan (jika "${optionText}"): ${fu.title}`,
+              width: 34,
+              getValue: (r) => (r.answers ? r.answers[fu.id] : null),
+            });
+          });
+        }
       });
 
       const workbook = new ExcelJS.Workbook();
@@ -484,26 +566,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         const rowIndex = headerRowIndex + 1 + idx;
         const row = sheet.getRow(rowIndex);
 
-        row.getCell(1).value = idx + 1;
-        row.getCell(2).value = r.id || "-";
-        row.getCell(3).value = window.UI.formatDate(r.submittedAt);
-
-        questions.forEach((q, qi) => {
-          const rawVal = r.answers ? r.answers[q.id] : null;
-          const cell = row.getCell(4 + qi);
+        columns.forEach((col, colIdx) => {
+          const cell = row.getCell(colIdx + 1);
+          const rawVal = col.getValue(r, idx);
 
           if (
-            q.type === "scale" &&
+            (col.isNumber || col.isScaleNumber) &&
             rawVal !== null &&
             rawVal !== undefined &&
             rawVal !== ""
           ) {
-            cell.value = Number(rawVal); // simpan sebagai angka asli, bukan teks
+            cell.value = Number(rawVal);
             cell.alignment = { horizontal: "center", vertical: "middle" };
           } else {
-            cell.value = rawVal || "-";
+            cell.value =
+              rawVal !== null && rawVal !== undefined && rawVal !== ""
+                ? rawVal
+                : colIdx < 3
+                  ? rawVal || "-"
+                  : "-";
             cell.alignment = {
-              horizontal: "left",
+              horizontal: colIdx < 3 ? "center" : "left",
               vertical: "middle",
               wrapText: true,
             };

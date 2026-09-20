@@ -16,7 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabBadgeCount = document.getElementById("tab-badge-count");
 
   // Elements Status & Analytics
-  const connectionBadge = document.getElementById("connection-status-badge");
   const surveyFilterSelect = document.getElementById("analytics-survey-filter");
   const btnExportAnalyticsCsv = document.getElementById(
     "btn-export-analytics-csv",
@@ -170,37 +169,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================================================================
-  // KONEKSI STATUS FIREBASE
-  // =========================================================================
-  function updateConnectionStatus() {
-    const isConfigured = window.SurveyDB.isConfigured();
-    const config = window.SurveyDB.getConfig();
-
-    if (isConfigured && window.SurveyDB.isFirebaseActive) {
-      connectionBadge.innerHTML = `
-        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Firebase Cloud (${config.projectId})</span>
-        </div>
-      `;
-    } else {
-      connectionBadge.innerHTML = `
-        <button id="btn-badge-setup" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition cursor-pointer shadow-sm">
-          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-          <span>Mode Demo (Lokal) &bull; Hubungkan Cloud</span>
-        </button>
-      `;
-      const badgeBtn = document.getElementById("btn-badge-setup");
-      if (badgeBtn) badgeBtn.addEventListener("click", openConfigModal);
-    }
-  }
-
-  // =========================================================================
   // LOAD DATA UTAMA
   // =========================================================================
   async function loadAllInitialData() {
-    updateConnectionStatus();
-
     try {
       loadedSurveys = await window.SurveyDB.getSurveys();
       tabBadgeCount.textContent = loadedSurveys.length;
@@ -275,8 +246,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let promoters = 0;
     let passives = 0;
     let detractors = 0;
+    let hasNPSQuestion = false; // Apakah ada pertanyaan yang sudah ditandai admin sebagai indikator NPS
 
-    // Skor per pertanyaan skala untuk Bar Chart
+    // Skor per pertanyaan skala untuk Bar Chart (semua pertanyaan skala, termasuk yang jadi indikator NPS)
     const scaleAspectsMap = {}; // { [qTitle]: { total: 0, count: 0 } }
 
     targetSurveys.forEach((survey) => {
@@ -289,29 +261,34 @@ document.addEventListener("DOMContentLoaded", () => {
           if (!scaleAspectsMap[q.title]) {
             scaleAspectsMap[q.title] = { total: 0, count: 0 };
           }
+          if (q.isNPS) hasNPSQuestion = true;
 
           resps.forEach((r) => {
             const ans = r.answers ? r.answers[q.id] : null;
             if (ans) {
               const num = parseInt(ans, 10);
               if (num >= 1 && num <= 5) {
-                totalScore += num;
-                scoreCount++;
-                ratingDistribution[num] = (ratingDistribution[num] || 0) + 1;
-
                 scaleAspectsMap[q.title].total += num;
                 scaleAspectsMap[q.title].count += 1;
 
-                if (num === 5) promoters++;
-                else if (num === 4) passives++;
-                else detractors++;
+                if (q.isNPS) {
+                  // Pertanyaan ini ditandai khusus sebagai indikator NPS -> TIDAK ikut masuk rata-rata CSAT
+                  if (num === 5) promoters++;
+                  else if (num === 4) passives++;
+                  else detractors++;
+                } else {
+                  // Pertanyaan skala biasa (bukan NPS) -> masuk perhitungan CSAT
+                  totalScore += num;
+                  scoreCount++;
+                  ratingDistribution[num] = (ratingDistribution[num] || 0) + 1;
+                }
               }
             }
           });
         });
     });
 
-    // Hitung Rata-Rata CSAT
+    // Hitung Rata-Rata CSAT (hanya dari pertanyaan skala yang BUKAN indikator NPS)
     const avgCsat =
       scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : "0.0";
     kpiCsatScore.textContent = avgCsat;
@@ -338,9 +315,20 @@ document.addEventListener("DOMContentLoaded", () => {
       kpiCsatBadge.textContent = "Belum Ada Data";
     }
 
-    // Hitung NPS
+    // Hitung NPS (HANYA dari pertanyaan yang ditandai admin sebagai indikator NPS)
     const totalNpsVotes = promoters + passives + detractors;
-    if (totalNpsVotes > 0) {
+    if (!hasNPSQuestion) {
+      // Belum ada satupun pertanyaan yang ditandai sebagai indikator NPS di survei yang tercakup
+      kpiNpsScore.textContent = "–";
+      kpiNpsDetail.textContent =
+        "Belum ada pertanyaan yang ditandai sebagai indikator NPS";
+      npsPctPromoters.textContent = "0%";
+      npsBarPromoters.style.width = "0%";
+      npsPctPassives.textContent = "0%";
+      npsBarPassives.style.width = "0%";
+      npsPctDetractors.textContent = "0%";
+      npsBarDetractors.style.width = "0%";
+    } else if (totalNpsVotes > 0) {
       const pPct = Math.round((promoters / totalNpsVotes) * 100);
       const paPct = Math.round((passives / totalNpsVotes) * 100);
       const dPct = Math.round((detractors / totalNpsVotes) * 100);
@@ -684,6 +672,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       });
 
+      // Kumpulkan juga union pertanyaan lanjutan (follow-up) dari semua survei yang tercakup,
+      // diidentifikasi lewat kombinasi judul pertanyaan induk + teks opsi + judul follow-up
+      const followUpDefs = [];
+      targetSurveys.forEach((s) => {
+        (s.questions || []).forEach((q) => {
+          if (q.type !== "choice" || !q.followUps) return;
+          Object.keys(q.followUps).forEach((optIdxKey) => {
+            const fu = q.followUps[optIdxKey];
+            if (!fu || !fu.title) return;
+            const optionText = (q.options || [])[optIdxKey] || "";
+            const key = `${q.title}||${optionText}||${fu.title}`;
+            if (!followUpDefs.some((d) => d.key === key)) {
+              followUpDefs.push({
+                key,
+                parentTitle: q.title,
+                optionText,
+                fuTitle: fu.title,
+              });
+            }
+          });
+        });
+      });
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "SURVEICRM";
       workbook.created = new Date();
@@ -746,12 +757,59 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // ================= SHEET 2: DATA MENTAH =================
       const columns = [
-        { header: "No", width: 6 },
-        { header: "Survei", width: 28 },
-        { header: "ID Responden", width: 22 },
-        { header: "Waktu Pengisian", width: 20 },
+        {
+          header: "No",
+          width: 6,
+          isNumber: true,
+          getValue: (r, idx) => idx + 1,
+        },
+        { header: "Survei", width: 28, getValue: (r) => r.surveyTitle },
+        { header: "ID Responden", width: 22, getValue: (r) => r.id || "-" },
+        {
+          header: "Waktu Pengisian",
+          width: 20,
+          getValue: (r) => window.UI.formatDate(r.submittedAt),
+        },
       ];
-      questionTitles.forEach((t) => columns.push({ header: t, width: 32 }));
+
+      questionTitles.forEach((title) => {
+        columns.push({
+          header: title,
+          width: 32,
+          isScaleNumber: questionTypeByTitle[title] === "scale",
+          getValue: (r) => {
+            const titleToId = {};
+            (r.surveyQuestions || []).forEach((q) => {
+              titleToId[q.title] = q.id;
+            });
+            const qId = titleToId[title];
+            return qId ? (r.answers ? r.answers[qId] : null) : null;
+          },
+        });
+      });
+
+      followUpDefs.forEach((fdef) => {
+        columns.push({
+          header: `${fdef.parentTitle} - Lanjutan (jika "${fdef.optionText}"): ${fdef.fuTitle}`,
+          width: 34,
+          getValue: (r) => {
+            const parentQ = (r.surveyQuestions || []).find(
+              (q) => q.title === fdef.parentTitle && q.type === "choice",
+            );
+            if (!parentQ) return null;
+            const selectedVal = r.answers ? r.answers[parentQ.id] : null;
+            const selectedIdx = (parentQ.options || []).indexOf(selectedVal);
+            const fu = parentQ.followUps
+              ? parentQ.followUps[selectedIdx]
+              : null;
+            if (fu && fu.title === fdef.fuTitle && r.answers) {
+              return r.answers[fu.id];
+            }
+            return null;
+          },
+        });
+      });
+
       const totalCols = columns.length;
 
       const dataSheet = workbook.addWorksheet("Data Mentah", {
@@ -780,26 +838,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       targetResponses.forEach((r, idx) => {
         const row = dataSheet.getRow(idx + 2);
-        row.getCell(1).value = idx + 1;
-        row.getCell(2).value = r.surveyTitle;
-        row.getCell(3).value = r.id || "-";
-        row.getCell(4).value = window.UI.formatDate(r.submittedAt);
 
-        // Petakan judul pertanyaan -> id pertanyaan milik survei asal respons ini
-        const titleToId = {};
-        (r.surveyQuestions || []).forEach((q) => {
-          titleToId[q.title] = q.id;
-        });
+        columns.forEach((col, colIdx) => {
+          const cell = row.getCell(colIdx + 1);
+          const rawVal = col.getValue(r, idx);
 
-        questionTitles.forEach((title, qi) => {
-          const cell = row.getCell(5 + qi);
-          const qId = titleToId[title];
-          const rawVal = qId ? (r.answers ? r.answers[qId] : null) : null;
-
-          if (!qId) {
-            cell.value = ""; // Survei ini memang tidak punya pertanyaan tersebut
-          } else if (
-            questionTypeByTitle[title] === "scale" &&
+          if (
+            (col.isNumber || col.isScaleNumber) &&
             rawVal !== null &&
             rawVal !== undefined &&
             rawVal !== ""
@@ -812,7 +857,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? rawVal
                 : "-";
             cell.alignment = {
-              horizontal: "left",
+              horizontal: colIdx < 4 ? "center" : "left",
               vertical: "middle",
               wrapText: true,
             };
@@ -1011,6 +1056,10 @@ document.addEventListener("DOMContentLoaded", () => {
         typeBadge =
           '<span class="text-[10px] font-bold px-2 py-0.5 bg-sky-100 text-sky-700 rounded-full">Teks Esai</span>';
       }
+      const npsBadge =
+        q.type === "scale" && q.isNPS
+          ? '<span class="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">🎯 NPS</span>'
+          : "";
 
       let inner = `
         <div class="flex items-center justify-between pb-2 border-b border-slate-200">
@@ -1019,6 +1068,7 @@ document.addEventListener("DOMContentLoaded", () => {
               ${index + 1}
             </span>
             ${typeBadge}
+            ${npsBadge}
           </div>
 
           <div class="flex items-center gap-1">
@@ -1048,29 +1098,63 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (q.type === "choice") {
         inner += `
-          <div class="space-y-1.5 pt-1">
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pilihan Opsi</label>
+          <div class="space-y-2 pt-1">
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pilihan Opsi &amp; Pertanyaan Lanjutan</label>
             ${(q.options || [])
-              .map(
-                (opt, optIdx) => `
-              <div class="flex items-center gap-1.5">
-                <span class="w-3 h-3 rounded-full border border-slate-300 shrink-0"></span>
-                <input 
-                  type="text" 
-                  value="${escapeAttr(opt)}"
-                  oninput="updateBuilderQOption(${index}, ${optIdx}, this.value)"
-                  class="flex-1 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus-glow"
-                >
-                <button type="button" onclick="deleteBuilderQOption(${index}, ${optIdx})" class="p-1 text-slate-400 hover:text-rose-500">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+              .map((opt, optIdx) => {
+                const fu = q.followUps && q.followUps[optIdx];
+                return `
+              <div class="bg-white border border-slate-200 rounded-xl p-2 space-y-1.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 rounded-full border border-slate-300 shrink-0"></span>
+                  <input 
+                    type="text" 
+                    value="${escapeAttr(opt)}"
+                    oninput="updateBuilderQOption(${index}, ${optIdx}, this.value)"
+                    class="flex-1 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus-glow"
+                  >
+                  <button type="button" onclick="deleteBuilderQOption(${index}, ${optIdx})" class="p-1 text-slate-400 hover:text-rose-500">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                </div>
+
+                ${
+                  fu
+                    ? `
+                  <div class="ml-4.5 pl-3 border-l-2 border-indigo-200 space-y-1.5 pt-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Muncul jika pilih "${escapeHtml(opt)}"</span>
+                      <button type="button" onclick="removeBuilderFollowUp(${index}, ${optIdx})" class="text-[10px] text-slate-400 hover:text-rose-500 font-semibold">
+                        Hapus
+                      </button>
+                    </div>
+                    <input 
+                      type="text" 
+                      value="${escapeAttr(fu.title)}"
+                      oninput="updateBuilderFollowUpTitle(${index}, ${optIdx}, this.value)"
+                      placeholder="Tulis pertanyaan lanjutannya..."
+                      class="w-full px-2.5 py-1.5 text-xs bg-indigo-50/50 border border-indigo-200 rounded-lg focus-glow"
+                    >
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" ${fu.required ? "checked" : ""} onchange="updateBuilderFollowUpRequired(${index}, ${optIdx}, this.checked)" class="w-3 h-3 text-indigo-600 rounded">
+                      <span class="text-[10px] font-semibold text-slate-500">Wajib diisi</span>
+                    </label>
+                  </div>
+                `
+                    : `
+                  <button type="button" onclick="addBuilderFollowUp(${index}, ${optIdx})" class="ml-4.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                    + Tambah pertanyaan lanjutan untuk opsi ini
+                  </button>
+                `
+                }
               </div>
-            `,
-              )
+            `;
+              })
               .join("")}
             <button type="button" onclick="addBuilderQOption(${index})" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 pt-1 flex items-center gap-1">
               + Tambah Opsi
             </button>
+            <p class="text-[10px] text-slate-400 pt-0.5">Tambahkan pertanyaan lanjutan di opsi tertentu untuk membuat alur bercabang &mdash; hanya muncul kalau opsi itu yang dipilih responden.</p>
           </div>
         `;
       } else if (q.type === "scale") {
@@ -1085,6 +1169,13 @@ document.addEventListener("DOMContentLoaded", () => {
               <input type="text" value="${escapeAttr(q.maxLabel || "Sangat Puas")}" oninput="updateBuilderQScale(${index}, 'maxLabel', this.value)" class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg">
             </div>
           </div>
+          <label class="mt-2 flex items-start gap-2 p-2 bg-indigo-50/60 border border-indigo-100 rounded-xl cursor-pointer">
+            <input type="checkbox" ${q.isNPS ? "checked" : ""} onchange="updateBuilderQIsNPS(${index}, this.checked)" class="w-3.5 h-3.5 text-indigo-600 rounded mt-0.5">
+            <span>
+              <span class="block text-xs font-bold text-indigo-700">Jadikan indikator NPS (Net Promoter Score)</span>
+              <span class="block text-[10px] text-indigo-400 leading-snug">Gunakan untuk pertanyaan seperti "Seberapa besar kemungkinan Anda merekomendasikan...". Hanya 1 pertanyaan per survei yang bisa jadi indikator NPS.</span>
+            </span>
+          </label>
         `;
       }
 
@@ -1218,8 +1309,53 @@ document.addEventListener("DOMContentLoaded", () => {
     builderQuestions[idx][field] = val;
     updatePhonePreview();
   };
+  window.updateBuilderQIsNPS = function (idx, checked) {
+    // Hanya 1 pertanyaan yang boleh jadi indikator NPS per survei — matikan yang lain kalau ada
+    builderQuestions.forEach((q, i) => {
+      if (q.type === "scale") {
+        q.isNPS = i === idx ? checked : false;
+      }
+    });
+    renderBuilderQuestions();
+  };
   window.updateBuilderQOption = function (qIdx, optIdx, val) {
     builderQuestions[qIdx].options[optIdx] = val;
+    updatePhonePreview();
+  };
+  window.addBuilderFollowUp = function (qIdx, optIdx) {
+    if (!builderQuestions[qIdx].followUps)
+      builderQuestions[qIdx].followUps = {};
+    builderQuestions[qIdx].followUps[optIdx] = {
+      id: "fu_" + Date.now() + "_" + Math.random().toString(36).substring(2, 5),
+      title: "",
+      type: "text",
+      required: false,
+    };
+    renderBuilderQuestions();
+    updatePhonePreview();
+  };
+  window.updateBuilderFollowUpTitle = function (qIdx, optIdx, val) {
+    if (
+      builderQuestions[qIdx].followUps &&
+      builderQuestions[qIdx].followUps[optIdx]
+    ) {
+      builderQuestions[qIdx].followUps[optIdx].title = val;
+    }
+    updatePhonePreview();
+  };
+  window.updateBuilderFollowUpRequired = function (qIdx, optIdx, checked) {
+    if (
+      builderQuestions[qIdx].followUps &&
+      builderQuestions[qIdx].followUps[optIdx]
+    ) {
+      builderQuestions[qIdx].followUps[optIdx].required = checked;
+    }
+  };
+  window.removeBuilderFollowUp = function (qIdx, optIdx) {
+    if (builderQuestions[qIdx].followUps) {
+      delete builderQuestions[qIdx].followUps[optIdx];
+    }
+    renderBuilderQuestions();
     updatePhonePreview();
   };
   window.addBuilderQOption = function (qIdx) {
@@ -1235,6 +1371,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     builderQuestions[qIdx].options.splice(optIdx, 1);
+
+    // Geser ulang key followUps supaya tetap selaras dengan index opsi yang baru
+    const oldFollowUps = builderQuestions[qIdx].followUps || {};
+    const newFollowUps = {};
+    Object.keys(oldFollowUps).forEach((key) => {
+      const k = parseInt(key, 10);
+      if (k === optIdx) return; // follow-up milik opsi yang dihapus, ikut terhapus
+      const newKey = k > optIdx ? k - 1 : k;
+      newFollowUps[newKey] = oldFollowUps[key];
+    });
+    builderQuestions[qIdx].followUps = newFollowUps;
+
     renderBuilderQuestions();
     updatePhonePreview();
   };
@@ -1260,6 +1408,7 @@ document.addEventListener("DOMContentLoaded", () => {
       title: "",
       required: true,
       options: ["Opsi 1", "Opsi 2", "Opsi 3"],
+      followUps: {}, // key = index opsi (string), value = { id, title, type:'text', required }
     });
     renderBuilderQuestions();
     updatePhonePreview();
@@ -1274,6 +1423,7 @@ document.addEventListener("DOMContentLoaded", () => {
       required: true,
       minLabel: "Sangat Tidak Puas",
       maxLabel: "Sangat Puas",
+      isNPS: false, // Tandai true kalau ini pertanyaan khusus "kemungkinan merekomendasikan" (NPS)
     });
     renderBuilderQuestions();
     updatePhonePreview();
@@ -1337,6 +1487,18 @@ document.addEventListener("DOMContentLoaded", () => {
             "warning",
           );
           return;
+        }
+        if (q.followUps) {
+          for (const optIdx of Object.keys(q.followUps)) {
+            const fu = q.followUps[optIdx];
+            if (fu && (!fu.title || fu.title.trim() === "")) {
+              window.UI.showToast(
+                `Pertanyaan lanjutan di opsi "${q.options[optIdx]}" (Pertanyaan ${i + 1}) belum diisi teksnya!`,
+                "warning",
+              );
+              return;
+            }
+          }
         }
       }
     }
